@@ -36,10 +36,9 @@ for trago in tragos:
     if not existe:  # Si no existe, lo insertamos
         menu.cursor.execute("INSERT INTO tragos (nombre, available) VALUES (?, ?)", (trago, True))
 
-# ----------------------
-# Guardamos y cerramos
-# ----------------------
+# -----------
+# Guardamos 
+# -----------
 menu.commit()
-menu.cerrar_db()
 
 print("✅ Base de datos creada y tragos insertados con éxito.")
