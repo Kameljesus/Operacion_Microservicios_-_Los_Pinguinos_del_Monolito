@@ -11,17 +11,12 @@ app = Flask(__name__)
 # ----------------------------------
 @app.route("/menu", methods=["GET"])
 def get_menu():
-    # -----------------------------
-    # Validamos token desde headers
-    # -----------------------------
     token = request.headers.get("Authorization")
     if not token:
         return jsonify({"error": "Token no proporcionado"}), 401
 
-    try:
-        validar_token(token)  # Si no es válido, lanza ValueError
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 401
+    if token.startswith("Bearer "):
+        token = token[len("Bearer "):]
 
     try:
         # -----------------------------
@@ -33,34 +28,20 @@ def get_menu():
         # -----------------------------
         # Formatear la respuesta
         # -----------------------------
-        menu_disponible = []
-        for nombre, available in tragos:
-            estado = "Available" if available == 1 else "Not Available"
-            menu_disponible.append(f"{nombre}, Available: {estado}")
+        # Filtrar solo los disponibles
+        menu_disponible = [
+            nombre for nombre, available in tragos if available == 1
+        ]
 
-        # -----------------------------
-        # Crear log del evento
-        # -----------------------------
-        logs.crear_log(
-            autor="menu_service",
-            service="menu",
-            severity="INFO",
-            mensaje="Cliente solicitó el menú"
-        )
+        # Log de éxito
+        logs.crear_log("menu_service", "menu", "INFO", "Cliente solicitó el menú")
         logs.cargar_log_a_db()
 
-        return jsonify({"menu": menu_disponible})
+        return jsonify({"menu": menu_disponible}), 200
 
     except Exception as e:
-        # -----------------------------
-        # Si ocurre un error, loguearlo y devolver HTTP 500
-        # -----------------------------
-        logs.crear_log(
-            autor="menu_service",
-            service="menu",
-            severity="ERROR",
-            mensaje=f"Error al obtener el menú: {e}"
-        )
+        print(f"🔥 Error interno: {e}")  # <-- debug en consola
+        logs.crear_log("menu_service", "menu", "ERROR", f"Error al obtener el menú: {e}")
         logs.cargar_log_a_db()
         return jsonify({"error": "Error interno del servidor"}), 500
 

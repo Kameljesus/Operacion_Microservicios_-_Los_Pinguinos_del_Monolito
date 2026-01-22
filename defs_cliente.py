@@ -17,6 +17,7 @@ def ingreso_nombre():
             print("❌ Nombre inválido. Solo se permiten letras y espacios")
 
 
+
 def ingreso_mail():
     while True:
         mail = input("Por favor ingrese su mail: ") #.not spaces ni antes de en medio
@@ -30,6 +31,7 @@ def ingreso_mail():
         else:
             print("❌ Mail inválido. Ingrese su mail correctamente")
             print()
+
 
 
 def ingreso_ubicacion():
@@ -46,6 +48,7 @@ def ingreso_ubicacion():
             print()
 
 
+
 def registrarse(nombre, mail, ubicacion):
     try:
         response = requests.post(
@@ -60,13 +63,37 @@ def registrarse(nombre, mail, ubicacion):
         if response.status_code == 200:
             data = response.json()
 
-            # Revisar si hubo error pero el usuario ya estaba registrado
+            # Caso: error explícito desde la API
             if "error" in data:
                 print(f"❌ {data['error']}")
-                print(f"Token actual del usuario: {data.get('token')}")
+                sys.exit(1)
+
+            # Caso: el usuario ya estaba registrado
+            elif "info" in data:
+                token = data.get("token")
+                if token:
+                    print(f"Bienvenido de vuelta {nombre}")
+                    print()
+                    return token
+                else:
+                    print("❌ No se pudo recuperar el token. Saliendo.")
+                    sys.exit(1)
+
+            # Caso: registro exitoso
+            elif "success" in data:
+                token = data.get("token")
+                if token:
+                    print("✅ Se ha registrado exitosamente")
+                    print()
+                    return token
+                else:
+                    print("❌ Respuesta inválida del servidor (falta token).")
+                    sys.exit(1)
+
             else:
-                print(f"✅ {data['success']}")
-                print(f"Token generado: {data.get('token')}")
+                # Caso: respuesta inesperada
+                print("❌ Respuesta desconocida del servidor.")
+                sys.exit(1)
 
         else:
             print(f"❌ Error {response.status_code}: {response.text}")
@@ -77,27 +104,95 @@ def registrarse(nombre, mail, ubicacion):
         sys.exit(1)
 
 
+
 def obtener_menu(token):
     try:
         response = requests.get(
             "http://127.0.0.1:8002/menu",
-            headers={"Authorization": token}  # token en headers
+            headers={"Authorization": f"Bearer {token}"}  # token en headers
         )
 
         # Verificamos si la respuesta fue exitosa
         if response.status_code == 200:
-            print(f"{response.json()}")   # devolvemos el JSON (el menú)
+            data = response.json()
+            menu = [trago.split(",")[0] for trago in data.get("menu", [])]  # extraemos solo los nombres
+
+            # Recorremos la lista y mostramos uno por línea
+            print("🍹 Menú disponible:")
+            for trago in menu:
+                print(trago)
+            print()
+            return menu  # devolvemos la lista de nombres para usar en la orden
 
         else:
-            # Si tu API falla con un error que no devuelva JSON (por ejemplo un 500 que devuelve HTML de Flask), tu línea:
-            try:
-                error_data = response.json()
-            except ValueError:
-                error_data = response.text  # si no es JSON, devolvemos texto plano
-            
-            print(f"❌ Error {response.status_code}: {error_data}")
-            sys.exit(1)
+            # Si hay error, mostramos mensaje amable
+            print("❌ Ahora mismo, no contamos con esta opción.")
+            print("Estamos trabajando para poder brindarle un servicio mejor. Muchas gracias.")
 
     except requests.exceptions.RequestException as e:
-            print(f"Error al conectar con la API: {e}")
-            sys.exit(1)
+            # Error de conexión
+            print("❌ Ahora mismo, no contamos con esta opción.")
+            print("Estamos trabajando para poder brindarle un servicio mejor. Muchas gracias.")
+
+
+
+def hacer_una_orden(nombre, mail, ubicacion, token):
+    menu_disponible = obtener_menu(token)
+    print()
+    if not menu_disponible:
+        return  # Si no hay menú, salimos
+
+    pedido = []
+    print("Ingrese los nombres de los tragos que desea pedir (máximo 15).")
+    print("Escriba 'fin' para terminar su pedido.")
+
+    while len(pedido) < 15:
+        trago = input(f"Trago {len(pedido)+1}: ").strip()
+        if trago.lower() == "fin":
+            break
+        elif trago not in menu_disponible:
+            print()
+            print("❌ Ese trago no está en el menú. Elija uno disponible.")
+            print()
+        elif trago in pedido:
+            print()
+            print("Trago repetido.")
+            print('Puede elegir otro trago distinto o terminar su pedido con "fin"')
+            print()
+        else:
+            pedido.append(trago)
+    
+    if not pedido:
+        print("No se agregó ningún trago al pedido. Operación cancelada.")
+        return
+
+    # Mostrar el pedido antes de enviarlo
+    print("Su pedido será:")
+    for trago in pedido:
+        print("-", trago)
+    print()
+
+    # Enviar la orden a la API
+    try:
+        response = requests.post(
+            "http://127.0.0.1:8003/orden",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "nombre": nombre,
+                "mail": mail,
+                "ubicacion": ubicacion,
+                "pedido": pedido
+            }
+        )
+
+        if response.status_code == 200:
+            print("✅ Pedido enviado correctamente:")
+            print()
+            
+        else:
+            print("❌ Ahora mismo, no contamos con esta opción.")
+            print("Estamos trabajando para poder brindarle un servicio mejor. Muchas gracias.")
+
+    except requests.exceptions.RequestException:
+        print("❌ Ahora mismo, no contamos con esta opción.")
+        print("Estamos trabajando para poder brindarle un servicio mejor. Muchas gracias.")
